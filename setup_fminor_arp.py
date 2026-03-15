@@ -68,7 +68,10 @@ def send_command(sock, command_type, params=None):
 def setup_track(sock, track_def):
     # Determine insert index
     session = send_command(sock, "get_session_info")
-    track_index = json.loads(session["result"])["track_count"]
+    session_result = session["result"]
+    if isinstance(session_result, str):
+        session_result = json.loads(session_result)
+    track_index = session_result["track_count"]
     print(f"Inserting track at index {track_index}")
 
     # Create MIDI track
