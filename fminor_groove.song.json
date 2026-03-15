@@ -1,0 +1,171 @@
+{
+  "name": "F Minor Groove",
+  "bpm": 128,
+  "time_signature": [4, 4],
+
+  "clips": {
+    "arp_main": {
+      "name": "Fm Arp",
+      "length": 8,
+      "notes": [
+        {"pitch": "F3",  "start": 0.00, "duration": 0.25, "velocity": 90},
+        {"pitch": "Ab3", "start": 0.25, "duration": 0.25, "velocity": 85},
+        {"pitch": "C4",  "start": 0.50, "duration": 0.25, "velocity": 88},
+        {"pitch": "F4",  "start": 0.75, "duration": 0.25, "velocity": 85},
+        {"pitch": "Ab4", "start": 1.00, "duration": 0.25, "velocity": 90},
+        {"pitch": "C5",  "start": 1.25, "duration": 0.25, "velocity": 85},
+        {"pitch": "Ab4", "start": 1.50, "duration": 0.25, "velocity": 82},
+        {"pitch": "F4",  "start": 1.75, "duration": 0.25, "velocity": 80},
+        {"pitch": "C4",  "start": 2.00, "duration": 0.25, "velocity": 85},
+        {"pitch": "Ab3", "start": 2.25, "duration": 0.25, "velocity": 82},
+        {"pitch": "F3",  "start": 2.50, "duration": 0.25, "velocity": 88},
+        {"pitch": "Ab3", "start": 2.75, "duration": 0.25, "velocity": 85},
+        {"pitch": "C4",  "start": 3.00, "duration": 0.25, "velocity": 90},
+        {"pitch": "F4",  "start": 3.25, "duration": 0.25, "velocity": 85},
+        {"pitch": "Ab4", "start": 3.50, "duration": 0.25, "velocity": 88},
+        {"pitch": "C5",  "start": 3.75, "duration": 0.25, "velocity": 92},
+        {"pitch": "F5",  "start": 4.00, "duration": 0.25, "velocity": 95},
+        {"pitch": "C5",  "start": 4.25, "duration": 0.25, "velocity": 88},
+        {"pitch": "Ab4", "start": 4.50, "duration": 0.25, "velocity": 85},
+        {"pitch": "F4",  "start": 4.75, "duration": 0.25, "velocity": 82},
+        {"pitch": "C4",  "start": 5.00, "duration": 0.25, "velocity": 85},
+        {"pitch": "Ab3", "start": 5.25, "duration": 0.25, "velocity": 80},
+        {"pitch": "F3",  "start": 5.50, "duration": 0.25, "velocity": 88},
+        {"pitch": "Ab3", "start": 5.75, "duration": 0.25, "velocity": 82},
+        {"pitch": "C4",  "start": 6.00, "duration": 0.25, "velocity": 85},
+        {"pitch": "F4",  "start": 6.25, "duration": 0.25, "velocity": 88},
+        {"pitch": "C4",  "start": 6.50, "duration": 0.25, "velocity": 82},
+        {"pitch": "Ab3", "start": 6.75, "duration": 0.25, "velocity": 80},
+        {"pitch": "F3",  "start": 7.00, "duration": 0.50, "velocity": 95},
+        {"pitch": "C4",  "start": 7.50, "duration": 0.25, "velocity": 85},
+        {"pitch": "F4",  "start": 7.75, "duration": 0.25, "velocity": 85}
+      ]
+    },
+
+    "arp_sparse": {
+      "name": "Fm Arp (Sparse)",
+      "length": 8,
+      "notes": [
+        {"pitch": "F3",  "start": 0.00, "duration": 0.25, "velocity": 75},
+        {"pitch": "C4",  "start": 0.50, "duration": 0.25, "velocity": 70},
+        {"pitch": "Ab4", "start": 1.00, "duration": 0.25, "velocity": 72},
+        {"pitch": "F4",  "start": 1.75, "duration": 0.25, "velocity": 65},
+        {"pitch": "C4",  "start": 2.00, "duration": 0.25, "velocity": 70},
+        {"pitch": "F3",  "start": 2.50, "duration": 0.25, "velocity": 72},
+        {"pitch": "C4",  "start": 3.00, "duration": 0.25, "velocity": 75},
+        {"pitch": "Ab4", "start": 3.50, "duration": 0.25, "velocity": 70},
+        {"pitch": "F5",  "start": 4.00, "duration": 0.50, "velocity": 80},
+        {"pitch": "C4",  "start": 5.00, "duration": 0.25, "velocity": 65},
+        {"pitch": "F3",  "start": 5.50, "duration": 0.25, "velocity": 70},
+        {"pitch": "F3",  "start": 7.00, "duration": 1.00, "velocity": 80}
+      ]
+    },
+
+    "pad_full": {
+      "name": "Fm Pad",
+      "length": 4,
+      "notes": [
+        {"pitch": "F3",  "start": 0.0, "duration": 3.9, "velocity": 65},
+        {"pitch": "Ab3", "start": 0.0, "duration": 3.9, "velocity": 60},
+        {"pitch": "C4",  "start": 0.0, "duration": 3.9, "velocity": 62},
+        {"pitch": "Eb4", "start": 0.0, "duration": 3.9, "velocity": 55}
+      ]
+    },
+
+    "pad_soft": {
+      "name": "Fm Pad (Soft)",
+      "length": 4,
+      "notes": [
+        {"pitch": "F3",  "start": 0.0, "duration": 3.9, "velocity": 42},
+        {"pitch": "Ab3", "start": 0.0, "duration": 3.9, "velocity": 38},
+        {"pitch": "C4",  "start": 0.0, "duration": 3.9, "velocity": 40}
+      ]
+    },
+
+    "bass_main": {
+      "name": "Fm Bass",
+      "length": 4,
+      "notes": [
+        {"pitch": "F2",  "start": 0.00, "duration": 0.45, "velocity": 95},
+        {"pitch": "F2",  "start": 0.75, "duration": 0.20, "velocity": 80},
+        {"pitch": "F2",  "start": 1.00, "duration": 0.45, "velocity": 90},
+        {"pitch": "Eb2", "start": 2.00, "duration": 0.45, "velocity": 88},
+        {"pitch": "C2",  "start": 2.50, "duration": 0.45, "velocity": 85},
+        {"pitch": "C2",  "start": 3.00, "duration": 0.45, "velocity": 90},
+        {"pitch": "Bb1", "start": 3.50, "duration": 0.45, "velocity": 82}
+      ]
+    },
+
+    "bass_root": {
+      "name": "Fm Bass (Root)",
+      "length": 4,
+      "notes": [
+        {"pitch": "F2",  "start": 0.0, "duration": 0.45, "velocity": 88},
+        {"pitch": "F2",  "start": 2.0, "duration": 0.45, "velocity": 82}
+      ]
+    }
+  },
+
+  "tracks": [
+    {
+      "id": "arp",
+      "name": "Fm Arpeggio",
+      "instrument_uri": "query:Synths#Drift:Synth%20Keys:FileId_3806"
+    },
+    {
+      "id": "pad",
+      "name": "Fm Pad",
+      "instrument_uri": "query:Synths#Drift:Synth%20Keys:FileId_3806"
+    },
+    {
+      "id": "bass",
+      "name": "Fm Bass",
+      "instrument_uri": "query:Synths#Drift:Synth%20Keys:FileId_3806"
+    }
+  ],
+
+  "sections": [
+    {
+      "name": "intro",
+      "bars": 8,
+      "clips": {
+        "pad": "pad_soft"
+      }
+    },
+    {
+      "name": "verse_A",
+      "bars": 16,
+      "clips": {
+        "arp":  "arp_main",
+        "pad":  "pad_full",
+        "bass": "bass_main"
+      }
+    },
+    {
+      "name": "breakdown",
+      "bars": 8,
+      "clips": {
+        "arp": "arp_sparse",
+        "pad": "pad_soft"
+      }
+    },
+    {
+      "name": "drop",
+      "bars": 16,
+      "clips": {
+        "arp":  "arp_main",
+        "pad":  "pad_full",
+        "bass": "bass_main"
+      }
+    },
+    {
+      "name": "outro",
+      "bars": 8,
+      "clips": {
+        "arp":  "arp_sparse",
+        "pad":  "pad_soft",
+        "bass": "bass_root"
+      }
+    }
+  ]
+}

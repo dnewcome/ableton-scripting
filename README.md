@@ -1,6 +1,13 @@
-# Ableton Track Setup Script
+# Ableton Scripting
 
-A Python script for programmatically creating MIDI tracks in Ableton Live using a simple JSON format.
+Python scripts for programmatically creating MIDI tracks and full song structures in Ableton Live using a simple JSON format.
+
+## Scripts
+
+| Script | Input | Description |
+|---|---|---|
+| `setup_song.py` | `.song.json` | Build a full multi-track song with named sections mapped to session view scenes |
+| `setup_fminor_arp.py` | `.track.json` | Create a single MIDI track with clips (original single-track script) |
 
 ## Requirements
 
@@ -8,7 +15,91 @@ A Python script for programmatically creating MIDI tracks in Ableton Live using 
 - Python 3.6+
 - No external dependencies — uses only the standard library
 
-## Usage
+---
+
+## Song structure (`setup_song.py`)
+
+```bash
+python3 setup_song.py                        # uses fminor_groove.song.json
+python3 setup_song.py my_song.song.json      # uses a custom song file
+```
+
+Creates all tracks, then maps each section to a scene in Ableton's session view. Clips shorter than their section loop automatically. Scene names are set to the section name.
+
+### Song JSON format
+
+```json
+{
+  "name": "My Song",
+  "bpm": 128,
+  "time_signature": [4, 4],
+
+  "clips": {
+    "bass_A": {
+      "name": "Bass Loop A",
+      "length": 4,
+      "notes": [
+        {"pitch": "F2", "start": 0.0, "duration": 0.45, "velocity": 95}
+      ]
+    }
+  },
+
+  "tracks": [
+    { "id": "bass", "name": "Bass", "instrument_uri": "query:..." }
+  ],
+
+  "sections": [
+    { "name": "intro",  "bars": 8,  "clips": { "bass": null } },
+    { "name": "verse_A","bars": 16, "clips": { "bass": "bass_A" } },
+    { "name": "outro",  "bars": 8,  "clips": { "bass": "bass_A" } }
+  ]
+}
+```
+
+### Top-level fields
+
+| Field | Type | Required | Default | Description |
+|---|---|---|---|---|
+| `name` | string | No | — | Song name (informational) |
+| `bpm` | number | No | `120` | Tempo in beats per minute |
+| `time_signature` | `[beats, division]` | No | `[4, 4]` | e.g. `[4, 4]` for common time |
+| `clips` | object | Yes | — | Named clip library (keyed by clip ID) |
+| `tracks` | array | Yes | — | Track definitions |
+| `sections` | array | Yes | — | Ordered song sections → scenes |
+
+### Clip library
+
+Clips are defined once and referenced by ID from multiple tracks and sections. The script creates a new clip instance per track×section combination.
+
+| Field | Type | Required | Default | Description |
+|---|---|---|---|---|
+| `name` | string | No | clip ID | Display name in Ableton |
+| `length` | number | Yes | — | Clip length in beats |
+| `notes` | array | No | `[]` | MIDI notes (same format as track JSON) |
+
+### Track fields
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `id` | string | Yes | Internal ID used to reference this track from sections |
+| `name` | string | Yes | Track name shown in Ableton |
+| `instrument_uri` | string | No | Browser URI of the instrument to load |
+
+### Section fields
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `name` | string | Yes | Section name, used to label the scene in Ableton |
+| `bars` | integer | Yes | Section length in bars (informational; drives arrangement placement later) |
+| `clips` | object | No | Map of `track_id → clip_id`. Use `null` to leave a track silent in this section. |
+
+### Example
+
+`fminor_groove.song.json` builds a 5-section F minor song (intro → verse A → breakdown → drop → outro) across three tracks: arpeggio, pad, and bass. The arp and pad clips are shared between sections.
+
+---
+
+## Single-track script (`setup_fminor_arp.py`)
 
 ```bash
 python3 setup_fminor_arp.py                      # uses fminor_arp.track.json
