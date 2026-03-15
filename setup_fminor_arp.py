@@ -1,22 +1,51 @@
 #!/usr/bin/env python3
 """
-Creates a MIDI track with an F minor arpeggio clip using the Night Crystal synth (Drift).
-Run this script while Ableton Live is open with the MCP Remote Script active.
+Load a .track.json file and create the track in Ableton Live.
+
+Usage:
+    python3 setup_fminor_arp.py [track_file.json]
+
+Defaults to fminor_arp.track.json if no argument is given.
+Ableton must be open with the MCP Remote Script active.
 """
 
 import socket
 import json
+import sys
 import time
 
 HOST = "localhost"
 PORT = 9877
 
+# --- Note name -> MIDI pitch ---
+
+NOTE_OFFSETS = {"C": 0, "D": 2, "E": 4, "F": 5, "G": 7, "A": 9, "B": 11}
+
+def note_to_midi(note):
+    """Convert a note name like 'F3', 'Ab4', 'C#5' to a MIDI pitch number."""
+    if isinstance(note, int):
+        return note
+    note = str(note).strip()
+    # Parse letter, optional accidental, octave
+    letter = note[0].upper()
+    rest = note[1:]
+    if rest and rest[0] in ("#", "b"):
+        accidental, octave = rest[0], int(rest[1:])
+    else:
+        accidental, octave = "", int(rest)
+    pitch = (octave + 1) * 12 + NOTE_OFFSETS[letter]
+    if accidental == "#":
+        pitch += 1
+    elif accidental == "b":
+        pitch -= 1
+    return pitch
+
+
+# --- Ableton socket communication ---
 
 def send_command(sock, command_type, params=None):
     command = {"type": command_type, "params": params or {}}
     sock.sendall(json.dumps(command).encode("utf-8"))
-
-    # Read response
     chunks = []
     sock.settimeout(10)
     while True:
@@ -25,120 +54,100 @@ def send_command(sock, command_type, params=None):
             if not chunk:
                 break
             chunks.append(chunk)
-            # Try to parse — if it succeeds we have a full response
             try:
-                data = json.loads(b"".join(chunks).decode("utf-8"))
-                return data
+                return json.loads(b"".join(chunks).decode("utf-8"))
             except json.JSONDecodeError:
                 continue
         except socket.timeout:
             break
-
     return json.loads(b"".join(chunks).decode("utf-8"))
 
 
-def main():
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
-        sock.connect((HOST, PORT))
-        print(f"Connected to Ableton at {HOST}:{PORT}")
+# --- Track setup ---
 
-        # 1. Get session info to find where to insert the new track
-        session = send_command(sock, "get_session_info")
-        track_count = json.loads(session["result"])["track_count"]
-        print(f"Current track count: {track_count}")
+def setup_track(sock, track_def):
+    # Determine insert index
+    session = send_command(sock, "get_session_info")
+    track_index = json.loads(session["result"])["track_count"]
+    print(f"Inserting track at index {track_index}")
 
-        # 2. Create a new MIDI track at the end
-        result = send_command(sock, "create_midi_track", {"index": -1})
-        track_index = track_count  # new track is appended at track_count index
-        print(f"Created MIDI track at index {track_index}: {result.get('result')}")
-        time.sleep(0.2)
+    # Create MIDI track
+    result = send_command(sock, "create_midi_track", {"index": -1})
+    print(f"  Created track: {result.get('result')}")
+    time.sleep(0.2)
 
-        # 3. Name the track
-        result = send_command(sock, "set_track_name", {
-            "track_index": track_index,
-            "name": "Fm Arpeggio"
-        })
-        print(f"Named track: {result.get('result')}")
-        time.sleep(0.1)
+    # Name the track
+    if "name" in track_def:
+        send_command(sock, "set_track_name", {"track_index": track_index, "name": track_def["name"]})
+        print(f"  Named: {track_def['name']}")
 
-        # 4. Load Night Crystal (Drift > Synth Keys)
+    # Load instrument
+    if "instrument_uri" in track_def:
         result = send_command(sock, "load_browser_item", {
             "track_index": track_index,
-            "item_uri": "query:Synths#Drift:Synth%20Keys:FileId_3806"
+            "item_uri": track_def["instrument_uri"]
         })
-        print(f"Loaded Night Crystal: {result.get('result')}")
+        print(f"  Loaded instrument: {result.get('result')}")
         time.sleep(0.3)
 
-        # 5. Create a 2-bar (8 beat) MIDI clip in slot 0
+    # Create clips
+    for clip_def in track_def.get("clips", []):
+        slot = clip_def.get("slot", 0)
+        length = clip_def.get("length", 4)
+
         result = send_command(sock, "create_clip", {
             "track_index": track_index,
-            "clip_index": 0,
-            "length": 8.0
+            "clip_index": slot,
+            "length": length
         })
-        print(f"Created clip: {result.get('result')}")
+        print(f"  Created clip in slot {slot}: {result.get('result')}")
         time.sleep(0.1)
 
-        # 6. Name the clip
-        result = send_command(sock, "set_clip_name", {
-            "track_index": track_index,
-            "clip_index": 0,
-            "name": "Fm Arp"
-        })
-        print(f"Named clip: {result.get('result')}")
+        if "name" in clip_def:
+            send_command(sock, "set_clip_name", {
+                "track_index": track_index,
+                "clip_index": slot,
+                "name": clip_def["name"]
+            })
 
-        # 7. Add F minor arpeggio notes (F, Ab, C across 2 octaves, 16th notes)
-        # F minor triad: F=53, Ab=56, C=60, F=65, Ab=68, C=72, F=77
+        # Add notes, resolving any note names to MIDI numbers
+        raw_notes = clip_def.get("notes", [])
         notes = [
-            # Bar 1: ascend F3 -> C5, then descend
-            {"pitch": 53, "start_time": 0.00, "duration": 0.25, "velocity": 90, "mute": False},
-            {"pitch": 56, "start_time": 0.25, "duration": 0.25, "velocity": 85, "mute": False},
-            {"pitch": 60, "start_time": 0.50, "duration": 0.25, "velocity": 88, "mute": False},
-            {"pitch": 65, "start_time": 0.75, "duration": 0.25, "velocity": 85, "mute": False},
-            {"pitch": 68, "start_time": 1.00, "duration": 0.25, "velocity": 90, "mute": False},
-            {"pitch": 72, "start_time": 1.25, "duration": 0.25, "velocity": 85, "mute": False},
-            {"pitch": 68, "start_time": 1.50, "duration": 0.25, "velocity": 82, "mute": False},
-            {"pitch": 65, "start_time": 1.75, "duration": 0.25, "velocity": 80, "mute": False},
-            {"pitch": 60, "start_time": 2.00, "duration": 0.25, "velocity": 85, "mute": False},
-            {"pitch": 56, "start_time": 2.25, "duration": 0.25, "velocity": 82, "mute": False},
-            {"pitch": 53, "start_time": 2.50, "duration": 0.25, "velocity": 88, "mute": False},
-            {"pitch": 56, "start_time": 2.75, "duration": 0.25, "velocity": 85, "mute": False},
-            {"pitch": 60, "start_time": 3.00, "duration": 0.25, "velocity": 90, "mute": False},
-            {"pitch": 65, "start_time": 3.25, "duration": 0.25, "velocity": 85, "mute": False},
-            {"pitch": 68, "start_time": 3.50, "duration": 0.25, "velocity": 88, "mute": False},
-            {"pitch": 72, "start_time": 3.75, "duration": 0.25, "velocity": 92, "mute": False},
-            # Bar 2: peak at F5, descend and resolve
-            {"pitch": 77, "start_time": 4.00, "duration": 0.25, "velocity": 95, "mute": False},
-            {"pitch": 72, "start_time": 4.25, "duration": 0.25, "velocity": 88, "mute": False},
-            {"pitch": 68, "start_time": 4.50, "duration": 0.25, "velocity": 85, "mute": False},
-            {"pitch": 65, "start_time": 4.75, "duration": 0.25, "velocity": 82, "mute": False},
-            {"pitch": 60, "start_time": 5.00, "duration": 0.25, "velocity": 85, "mute": False},
-            {"pitch": 56, "start_time": 5.25, "duration": 0.25, "velocity": 80, "mute": False},
-            {"pitch": 53, "start_time": 5.50, "duration": 0.25, "velocity": 88, "mute": False},
-            {"pitch": 56, "start_time": 5.75, "duration": 0.25, "velocity": 82, "mute": False},
-            {"pitch": 60, "start_time": 6.00, "duration": 0.25, "velocity": 85, "mute": False},
-            {"pitch": 65, "start_time": 6.25, "duration": 0.25, "velocity": 88, "mute": False},
-            {"pitch": 60, "start_time": 6.50, "duration": 0.25, "velocity": 82, "mute": False},
-            {"pitch": 56, "start_time": 6.75, "duration": 0.25, "velocity": 80, "mute": False},
-            {"pitch": 53, "start_time": 7.00, "duration": 0.50, "velocity": 95, "mute": False},  # held F
-            {"pitch": 60, "start_time": 7.50, "duration": 0.25, "velocity": 85, "mute": False},
-            {"pitch": 65, "start_time": 7.75, "duration": 0.25, "velocity": 85, "mute": False},
+            {
+                "pitch": note_to_midi(n["pitch"]),
+                "start_time": n["start"],
+                "duration": n["duration"],
+                "velocity": n.get("velocity", 100),
+                "mute": n.get("mute", False),
+            }
+            for n in raw_notes
         ]
-        result = send_command(sock, "add_notes_to_clip", {
-            "track_index": track_index,
-            "clip_index": 0,
-            "notes": notes
-        })
-        print(f"Added notes: {result.get('result')}")
-        time.sleep(0.1)
+        if notes:
+            result = send_command(sock, "add_notes_to_clip", {
+                "track_index": track_index,
+                "clip_index": slot,
+                "notes": notes
+            })
+            print(f"  Added {len(notes)} notes: {result.get('result')}")
 
-        # 8. Fire the clip
-        result = send_command(sock, "fire_clip", {
-            "track_index": track_index,
-            "clip_index": 0
-        })
-        print(f"Fired clip: {result.get('result')}")
+        if clip_def.get("fire"):
+            result = send_command(sock, "fire_clip", {
+                "track_index": track_index,
+                "clip_index": slot
+            })
+            print(f"  Fired clip: {result.get('result')}")
 
-        print("\nDone! F minor arpeggio track is set up and playing.")
+
+def main():
+    track_file = sys.argv[1] if len(sys.argv) > 1 else "fminor_arp.track.json"
+    with open(track_file) as f:
+        track_def = json.load(f)
+
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+        sock.connect((HOST, PORT))
+        print(f"Connected to Ableton at {HOST}:{PORT}\n")
+        setup_track(sock, track_def)
+        print("\nDone!")
 
 
 if __name__ == "__main__":
