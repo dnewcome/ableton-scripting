@@ -161,6 +161,7 @@
     {
       "name": "outro",
       "bars": 8,
+      "follow_action": "stop",
       "clips": {
         "arp":  "arp_sparse",
         "pad":  "pad_soft",
