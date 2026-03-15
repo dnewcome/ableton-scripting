@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "mcp__AbletonMCP__create_midi_track",
+      "mcp__AbletonMCP__get_browser_tree",
+      "mcp__AbletonMCP__get_browser_items_at_path",
+      "mcp__AbletonMCP__fire_clip"
+    ]
+  }
+}
