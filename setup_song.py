@@ -125,6 +125,8 @@ def set_follow_action(sock, track_idx, scene_idx, action, action_time_beats):
             print("        See PENDING REMOTE SCRIPT COMMANDS in setup_song.py.")
             print("        Everything else was set up correctly.\n")
             _follow_action_unsupported_warned = True
+        else:
+            print(f"    WARNING: set_clip_follow_action error: {msg}")
     return result
 
 
