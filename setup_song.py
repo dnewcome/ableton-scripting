@@ -209,22 +209,15 @@ def setup_song(sock, song_def):
             loops = section_beats / clip_length
             loop_note = f"loops ×{loops:.4g}" if loops != 1 else "no loop"
 
-            # Create the clip at the full section length so it fills the
-            # arrangement when placed. Set loop_end to the natural clip length
-            # so the pattern repeats correctly within that space.
+            # Create the clip at the full section length. Do NOT set the loop
+            # yet — duplicate_clip_to_arrangement uses loop_end as the placement
+            # length, so the loop must be set AFTER the arrangement pass.
             send_command(sock, "create_clip", {
                 "track_index": track_idx,
                 "clip_index":  scene_idx,
                 "length":      section_beats,
             })
             time.sleep(0.1)
-
-            send_command(sock, "set_clip_loop", {
-                "track_index": track_idx,
-                "clip_index":  scene_idx,
-                "loop_start":  0.0,
-                "loop_end":    clip_length,
-            })
 
             send_command(sock, "set_clip_name", {
                 "track_index": track_idx,
@@ -282,6 +275,28 @@ def setup_song(sock, song_def):
             print(f"    {track_id}: '{clip_name}'  → beat {position:.4g}–{end_position:.4g}")
 
         position = end_position
+
+    # --- Set session clip loops (after arrangement pass) ---
+    # Loop must be set after placement so duplicate_clip_to_arrangement uses
+    # the full section length, not the loop region, as the arrangement clip size.
+    print(f"\nSetting session clip loops:")
+    for scene_idx, section in enumerate(sections):
+        section_beats = section["bars"] * beats_per_bar
+        for track_id, clip_id in section.get("clips", {}).items():
+            if clip_id is None or track_id not in track_indices:
+                continue
+            clip_def = clip_library.get(clip_id)
+            if clip_def is None:
+                continue
+            track_idx = track_indices[track_id]
+            clip_length = clip_def["length"]
+            send_command(sock, "set_clip_loop", {
+                "track_index": track_idx,
+                "clip_index":  scene_idx,
+                "loop_start":  0.0,
+                "loop_end":    clip_length,
+            })
+        print(f"  [{scene_idx}] {section['name']}")
 
 
 def main():
