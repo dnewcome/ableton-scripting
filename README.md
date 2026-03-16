@@ -4,10 +4,11 @@ Python scripts for programmatically creating MIDI tracks and full song structure
 
 ## Scripts
 
-| Script | Input | Description |
+| Script | Input / Output | Description |
 |---|---|---|
-| `setup_song.py` | `.song.json` | Build a full multi-track song with named sections mapped to session view scenes |
-| `setup_fminor_arp.py` | `.track.json` | Create a single MIDI track with clips (original single-track script) |
+| `setup_song.py` | `.song.json` → Ableton | Build a full multi-track song with named sections mapped to session view scenes |
+| `pull_song.py` | Ableton → `.song.json` | Read the current session and generate a `.song.json` skeleton (round-trip pull) |
+| `setup_fminor_arp.py` | `.track.json` → Ableton | Create a single MIDI track with clips (original single-track script) |
 
 ## Requirements
 
@@ -96,6 +97,31 @@ Clips are defined once and referenced by ID from multiple tracks and sections. T
 ### Example
 
 `fminor_groove.song.json` builds a 5-section F minor song (intro → verse A → breakdown → drop → outro) across three tracks: arpeggio, pad, and bass. The arp and pad clips are shared between sections.
+
+---
+
+## Round-trip pull (`pull_song.py`)
+
+```bash
+python3 pull_song.py                        # writes pulled_song.song.json
+python3 pull_song.py my_session.song.json   # custom output path
+```
+
+Reads the current Ableton session over the MCP socket and generates a `.song.json` skeleton you can edit and feed back into `setup_song.py`.
+
+### What gets pulled
+
+- Tempo and time signature
+- All MIDI tracks (name + best-effort instrument URI from device class name)
+- All session view clips including MIDI notes (pitches converted to note names like `"F3"`)
+- Scene names used as section names; unnamed scenes chained by follow-action=Next are merged into the same section; remaining unnamed sections are labelled A, B, C, …
+- Shared clips are de-duplicated in the clip library (identical content → same clip ID)
+
+### Limitations
+
+- **Instrument URIs are approximate.** The MCP API exposes device class names but not browser URIs. The generated `instrument_uri` values are best-guess queries you will likely need to correct manually.
+- **Multi-scene sections** (clips chained via follow actions) are collapsed to a single section entry using the first clip found for each track. Bars are summed across the merged scenes.
+- Audio tracks are skipped (only MIDI tracks are included).
 
 ---
 
