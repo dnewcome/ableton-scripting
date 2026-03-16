@@ -209,13 +209,22 @@ def setup_song(sock, song_def):
             loops = section_beats / clip_length
             loop_note = f"loops ×{loops:.4g}" if loops != 1 else "no loop"
 
-            # Create the clip at its natural length; Ableton loops it automatically
+            # Create the clip at the full section length so it fills the
+            # arrangement when placed. Set loop_end to the natural clip length
+            # so the pattern repeats correctly within that space.
             send_command(sock, "create_clip", {
                 "track_index": track_idx,
                 "clip_index":  scene_idx,
-                "length":      clip_length,
+                "length":      section_beats,
             })
             time.sleep(0.1)
+
+            send_command(sock, "set_clip_loop", {
+                "track_index": track_idx,
+                "clip_index":  scene_idx,
+                "loop_start":  0.0,
+                "loop_end":    clip_length,
+            })
 
             send_command(sock, "set_clip_name", {
                 "track_index": track_idx,
@@ -268,12 +277,6 @@ def setup_song(sock, song_def):
                 "track_index":      track_idx,
                 "clip_index":       scene_idx,
                 "arrangement_time": position,
-            })
-
-            send_command(sock, "set_arrangement_clip_end", {
-                "track_index":      track_idx,
-                "arrangement_time": position,
-                "end_time":         end_position,
             })
 
             print(f"    {track_id}: '{clip_name}'  → beat {position:.4g}–{end_position:.4g}")
