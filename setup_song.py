@@ -246,6 +246,40 @@ def setup_song(sock, song_def):
 
             print(f"    {track_id}: '{clip_name}'  {clip_length} beats  ({loop_note} to fill {section_beats} beats)")
 
+    # --- Render arrangement timeline ---
+    print(f"\nRendering arrangement timeline:")
+    position = 0.0
+    for scene_idx, section in enumerate(sections):
+        section_name = section["name"]
+        section_bars = section["bars"]
+        section_beats = section_bars * beats_per_bar
+        section_clips = section.get("clips", {})
+        end_position = position + section_beats
+
+        print(f"\n  {section_name}  beat {position:.4g}–{end_position:.4g}")
+
+        for track_id, clip_id in section_clips.items():
+            if clip_id is None or track_id not in track_indices:
+                continue
+            track_idx = track_indices[track_id]
+            clip_name = clip_library.get(clip_id, {}).get("name", clip_id)
+
+            send_command(sock, "copy_clip_to_arrangement", {
+                "track_index":      track_idx,
+                "clip_index":       scene_idx,
+                "arrangement_time": position,
+            })
+
+            send_command(sock, "set_arrangement_clip_end", {
+                "track_index":      track_idx,
+                "arrangement_time": position,
+                "end_time":         end_position,
+            })
+
+            print(f"    {track_id}: '{clip_name}'  → beat {position:.4g}–{end_position:.4g}")
+
+        position = end_position
+
 
 def main():
     song_file = sys.argv[1] if len(sys.argv) > 1 else "fminor_groove.song.json"
