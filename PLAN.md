@@ -66,11 +66,23 @@ git show 9ade269:pull_song.py
 
 `duplicate_clip_to_arrangement()` in the Live API requires a session clip source — there is no direct "create arrangement clip" API. The two-pass approach in `setup_song.py` (session first, then arrangement) is the right design given this constraint.
 
-### Follow actions — deprioritized (2026-03-29)
+### Follow actions — required for correct arrangement repeats (updated 2026-03-30)
 
-Significant effort was spent getting follow actions to work for session-view playback. The core bug: setting `loop_end` resets `follow_action_time` to match it, so the two operations must happen in the same scheduler task. The fix (combining them in `set_clip_loop`) is in the remote script but `setup_song.py` still uses two separate calls.
+Follow actions are needed to make arrangement output correct. Currently, each section writes only one clip instance followed by empty space. The correct behavior is to repeat the clip N times (where N = the clip's repeat count in the JSON) before advancing to the next section.
 
-**Decision:** Don't invest more time in follow actions right now. The arrangement view is the primary target. Follow action support in the session view can be revisited later if needed. The fix is already in place in the remote script if needed.
+**How it should work:**
+- Session clips are placed in arrangement N times (one per repeat) using `duplicate_clip_to_arrangement`
+- Follow action on the session clip should be set to **Next** so that during session playback the section also advances correctly
+- Follow action must also be **enabled** (`follow_action_enabled = True`) — otherwise the follow action setting has no effect
+
+**Current status:**
+- `set_clip_follow_action` can set the follow action type to Next
+- `set_clip_loop` (combined loop/follow setter) is in the remote script
+- **Blocker:** `follow_action_enabled` cannot be set — the Live API property appears to be read-only or does not respond to assignment the same way other clip properties do. This prevents session-view clips from auto-advancing correctly.
+
+**Core bug (loop_end / follow_action_time):** Setting `loop_end` resets `follow_action_time` to match it, so those two operations must happen in the same scheduler task. The fix (combining them in `set_clip_loop`) is already in the remote script.
+
+**Next action:** Investigate whether `follow_action_enabled` can be set via a different Live API surface (e.g., via `clip.follow_action_enabled` vs `clip.set_follow_action_enabled()`), or whether a workaround exists (e.g., writing the arrangement clips N times without relying on session follow actions).
 
 ---
 
@@ -101,11 +113,14 @@ The fork at `../ableton-mcp` ([dnewcome/ableton-mcp](https://github.com/dnewcome
 - **Instrument URIs are approximate** — `get_track_info` returns device class names, not browser URIs. The `instrument_uri` values in pulled JSON are best-guess queries that may need manual correction.
 - **Section names lost on pull** — arrangement clips don't store section names. Pulled JSON always uses A/B/C/… labels.
 - **Audio tracks skipped** — only MIDI tracks are included in pull/push.
+- **`follow_action_enabled` not settable (blocker)** — The Live API does not respond to setting `clip.follow_action_enabled = True`. Follow action type (Next) can be set, but without enabling it the clip does not auto-advance. This means section repeats in the arrangement are not written correctly: each section appears as a single clip instance instead of N repetitions.
 
 ---
 
 ## Next Steps
 
+- **Fix arrangement repeats** — Write each section's clip N times into the arrangement (once per repeat) by calling `duplicate_clip_to_arrangement` in a loop. This is independent of follow actions and will fix the core output correctness issue.
+- Investigate `follow_action_enabled` — determine whether this can be set via the Live API (different property name, method call, or MIDI Remote Script workaround) to also fix session-view playback.
 - Test the full round-trip: `setup_song.py` → Ableton → `pull_song.py` → edit JSON → `setup_song.py`
 - Verify `clip.delete()` works for arrangement clips in Live
 - Consider storing section names as arrangement clip names on push (so pull can recover them)
