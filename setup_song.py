@@ -248,6 +248,13 @@ def setup_song(sock, song_def):
 
             print(f"    {track_id}: '{clip_name}'  {clip_length} beats  ({loop_note} to fill {section_beats} beats)")
 
+    # --- Clear existing arrangement clips before re-rendering ---
+    print(f"\nClearing arrangement timeline:")
+    for track_id, track_idx in track_indices.items():
+        result = send_command(sock, "clear_arrangement", {"track_index": track_idx})
+        deleted = result.get("result", {}).get("deleted", 0) if result.get("status") != "error" else "error"
+        print(f"  {track_id}: {deleted} clip(s) removed")
+
     # --- Render arrangement timeline ---
     print(f"\nRendering arrangement timeline:")
     position = 0.0

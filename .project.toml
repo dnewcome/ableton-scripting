@@ -1,0 +1,18 @@
+id = "8ac22c64-e889-42ac-a8f9-5e21c3b7777b"
+slug = "ableton-scripting"
+name = "Ableton Scripting"
+description = "Round-trip JSON workflow for composing and editing Ableton Live arrangements in code"
+theme = "Music tools / LLM-assisted composition"
+tags = ["music", "ableton", "midi", "python", "llm", "creative-code"]
+
+[[repo]]
+url = "https://github.com/dnewcome/ableton-scripting"
+
+[publish]
+site = "dnuke.com"
+devlog_tag = "ableton-scripting"
+devlog_dest = "../dnuke.com/src/blog/posts"
+
+[devlog]
+version = "main"
+source = "https://github.com/dnewcome/devlog-tools"

@@ -1,33 +1,83 @@
 # Ableton Scripting
 
-Python scripts for programmatically creating MIDI tracks and full song structures in Ableton Live using a simple JSON format.
+Python scripts for composing and editing full song arrangements in Ableton Live using a plain JSON format. The core idea is a round-trip workflow: write or generate a `.song.json` file, push it into Ableton, make changes in Ableton or in the JSON, and pull it back out again.
 
-## Scripts
+## How it works
 
-| Script | Input / Output | Description |
-|---|---|---|
-| `setup_song.py` | `.song.json` → Ableton | Build a full multi-track song with named sections mapped to session view scenes |
-| `pull_song.py` | Ableton → `.song.json` | Read the current session and generate a `.song.json` skeleton (round-trip pull) |
-| `setup_fminor_arp.py` | `.track.json` → Ableton | Create a single MIDI track with clips (original single-track script) |
+This project uses the [AbletonMCP](https://github.com/ahujasid/ableton-mcp) Remote Script (forked at [dnewcome/ableton-mcp](https://github.com/dnewcome/ableton-mcp)), which exposes Ableton's Live API over a local socket on port 9877. The Python scripts connect to that socket and issue commands to create tracks, load instruments, write MIDI notes, and place clips on the arrangement timeline.
+
+### The round-trip concept
+
+```
+.song.json  ──setup_song.py──▶  Ableton arrangement
+                                        │
+                               edit in Ableton or JSON
+                                        │
+.song.json  ◀──pull_song.py──  Ableton arrangement
+```
+
+The JSON file is the source of truth. You can:
+- Write a song from scratch in JSON and push it to Ableton
+- Have an LLM generate or edit a `.song.json` and push it
+- Pull what's in the arrangement back to JSON, edit it, and push changes back
+- Iterate freely — each push clears and rewrites the arrangement
+
+### Session view as staging area
+
+The Live API has no direct "create arrangement clip" call. Instead, `setup_song.py` uses a two-pass approach: clips are first created in the session view (which supports direct clip creation), then duplicated onto the arrangement timeline via `duplicate_clip_to_arrangement`. The session view is just a scratch pad — the arrangement is the actual song output.
+
+---
 
 ## Requirements
 
-- Ableton Live with the [AbletonMCP](https://github.com/ahujasid/ableton-mcp) Remote Script installed and active
+- Ableton Live with the [dnewcome/ableton-mcp](https://github.com/dnewcome/ableton-mcp) Remote Script installed and active
 - Python 3.6+
 - No external dependencies — uses only the standard library
 
 ---
 
-## Song structure (`setup_song.py`)
+## Scripts
+
+### `setup_song.py` — push JSON to Ableton
 
 ```bash
 python3 setup_song.py                        # uses fminor_groove.song.json
-python3 setup_song.py my_song.song.json      # uses a custom song file
+python3 setup_song.py my_song.song.json
 ```
 
-Creates all tracks, then maps each section to a scene in Ableton's session view. Clips shorter than their section loop automatically. Scene names are set to the section name.
+Reads a `.song.json` file and builds the song in Ableton:
 
-### Song JSON format
+1. Sets tempo and time signature
+2. Creates MIDI tracks and loads instruments
+3. Creates session view clips with MIDI notes (staging pass)
+4. Clears the existing arrangement timeline
+5. Places clips on the arrangement at the correct beat positions, section by section
+6. Sets clip loop regions
+
+Push is idempotent — running it twice on the same file clears and rewrites the arrangement rather than layering on top.
+
+### `pull_song.py` — pull arrangement to JSON
+
+```bash
+python3 pull_song.py                         # writes pulled_song.song.json
+python3 pull_song.py my_session.song.json
+```
+
+Reads the current Ableton arrangement and reconstructs a `.song.json`:
+
+1. Reads session metadata (tempo, time signature)
+2. Reads track names and instrument info
+3. Reads `arrangement_clips` per track — positions on the timeline
+4. Groups clips by `start_time` into sections (clips sharing a start position = one section)
+5. Fetches MIDI notes for each arrangement clip
+6. De-duplicates identical clip content into a shared clip library
+7. Converts MIDI pitch numbers to note names (`53` → `"F3"`)
+
+Sections are labelled A, B, C, … in timeline order. Arrangement clips don't store section names, so original names (e.g. "intro", "verse_A") are not recovered on pull.
+
+---
+
+## Song JSON format
 
 ```json
 {
@@ -50,9 +100,9 @@ Creates all tracks, then maps each section to a scene in Ableton's session view.
   ],
 
   "sections": [
-    { "name": "intro",  "bars": 8,  "clips": { "bass": null } },
-    { "name": "verse_A","bars": 16, "clips": { "bass": "bass_A" } },
-    { "name": "outro",  "bars": 8,  "clips": { "bass": "bass_A" } }
+    { "name": "intro",   "bars": 8,  "clips": { "bass": null   } },
+    { "name": "verse_A", "bars": 16, "clips": { "bass": "bass_A" } },
+    { "name": "outro",   "bars": 8,  "clips": { "bass": "bass_A" } }
   ]
 }
 ```
@@ -66,17 +116,17 @@ Creates all tracks, then maps each section to a scene in Ableton's session view.
 | `time_signature` | `[beats, division]` | No | `[4, 4]` | e.g. `[4, 4]` for common time |
 | `clips` | object | Yes | — | Named clip library (keyed by clip ID) |
 | `tracks` | array | Yes | — | Track definitions |
-| `sections` | array | Yes | — | Ordered song sections → scenes |
+| `sections` | array | Yes | — | Ordered sections that map to positions on the arrangement timeline |
 
 ### Clip library
 
-Clips are defined once and referenced by ID from multiple tracks and sections. The script creates a new clip instance per track×section combination.
+Clips are defined once and referenced by ID from any number of tracks and sections. When `setup_song.py` runs it creates a separate clip instance for each track × section combination, but all instances share the same MIDI content.
 
-| Field | Type | Required | Default | Description |
-|---|---|---|---|---|
-| `name` | string | No | clip ID | Display name in Ableton |
-| `length` | number | Yes | — | Clip length in beats |
-| `notes` | array | No | `[]` | MIDI notes (same format as track JSON) |
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `name` | string | No | Display name shown in Ableton (defaults to clip ID) |
+| `length` | number | Yes | Clip length in beats |
+| `notes` | array | No | MIDI notes (see note format below) |
 
 ### Track fields
 
@@ -84,121 +134,40 @@ Clips are defined once and referenced by ID from multiple tracks and sections. T
 |---|---|---|---|
 | `id` | string | Yes | Internal ID used to reference this track from sections |
 | `name` | string | Yes | Track name shown in Ableton |
-| `instrument_uri` | string | No | Browser URI of the instrument to load |
+| `instrument_uri` | string | No | Browser URI of the instrument preset to load |
 
 ### Section fields
 
 | Field | Type | Required | Description |
 |---|---|---|---|
-| `name` | string | Yes | Section name, used to label the scene in Ableton |
-| `bars` | integer | Yes | Section length in bars (informational; drives arrangement placement later) |
-| `clips` | object | No | Map of `track_id → clip_id`. Use `null` to leave a track silent in this section. |
+| `name` | string | Yes | Section name — used to label scenes in Ableton |
+| `bars` | integer | Yes | Section length in bars — determines how much timeline space the section occupies |
+| `clips` | object | No | Map of `track_id → clip_id`. Omit a track or use `null` to leave it silent in this section |
 
-### Example
+Clips shorter than `bars × beats_per_bar` loop to fill the section. Clips longer are truncated.
 
-`fminor_groove.song.json` builds a 5-section F minor song (intro → verse A → breakdown → drop → outro) across three tracks: arpeggio, pad, and bass. The arp and pad clips are shared between sections.
-
----
-
-## Round-trip pull (`pull_song.py`)
-
-```bash
-python3 pull_song.py                        # writes pulled_song.song.json
-python3 pull_song.py my_session.song.json   # custom output path
-```
-
-Reads the current Ableton session over the MCP socket and generates a `.song.json` skeleton you can edit and feed back into `setup_song.py`.
-
-### What gets pulled
-
-- Tempo and time signature
-- All MIDI tracks (name + best-effort instrument URI from device class name)
-- All session view clips including MIDI notes (pitches converted to note names like `"F3"`)
-- Scene names used as section names; unnamed scenes chained by follow-action=Next are merged into the same section; remaining unnamed sections are labelled A, B, C, …
-- Shared clips are de-duplicated in the clip library (identical content → same clip ID)
-
-### Limitations
-
-- **Instrument URIs are approximate.** The MCP API exposes device class names but not browser URIs. The generated `instrument_uri` values are best-guess queries you will likely need to correct manually.
-- **Multi-scene sections** (clips chained via follow actions) are collapsed to a single section entry using the first clip found for each track. Bars are summed across the merged scenes.
-- Audio tracks are skipped (only MIDI tracks are included).
-
----
-
-## Single-track script (`setup_fminor_arp.py`)
-
-```bash
-python3 setup_fminor_arp.py                      # uses fminor_arp.track.json
-python3 setup_fminor_arp.py my_track.json        # uses a custom track file
-```
-
-The script connects to Ableton over a local socket, appends a new MIDI track, loads the instrument, creates clips, and optionally fires them — all in one shot.
-
-## Track JSON Format
-
-A track file is a `.json` file with the following structure:
-
-```json
-{
-  "name": "My Track",
-  "instrument_uri": "query:Synths#Drift:Synth%20Keys:FileId_3806",
-  "clips": [
-    {
-      "slot": 0,
-      "name": "My Clip",
-      "length": 8,
-      "fire": true,
-      "notes": [
-        {"pitch": "F3",  "start": 0.00, "duration": 0.25, "velocity": 90},
-        {"pitch": "Ab3", "start": 0.25, "duration": 0.25, "velocity": 85}
-      ]
-    }
-  ]
-}
-```
-
-### Top-level fields
-
-| Field | Type | Required | Description |
-|---|---|---|---|
-| `name` | string | No | Track name shown in Ableton |
-| `instrument_uri` | string | No | Browser URI of the instrument to load |
-| `clips` | array | No | List of clips to create on the track |
-
-### Clip fields
+### Note format
 
 | Field | Type | Required | Default | Description |
 |---|---|---|---|---|
-| `slot` | integer | No | `0` | Clip slot index (row in session view) |
-| `name` | string | No | — | Clip name shown in Ableton |
-| `length` | number | No | `4` | Clip length in beats |
-| `fire` | boolean | No | `false` | Start playing the clip after creation |
-| `notes` | array | No | `[]` | List of MIDI notes |
-
-### Note fields
-
-| Field | Type | Required | Default | Description |
-|---|---|---|---|---|
-| `pitch` | string or integer | Yes | — | Note name (`"F3"`, `"Ab4"`, `"C#5"`) or raw MIDI number (`53`) |
+| `pitch` | string or integer | Yes | — | Note name (`"F3"`, `"Ab4"`, `"C#5"`) or MIDI number (`53`) |
 | `start` | number | Yes | — | Start position in beats from the beginning of the clip |
 | `duration` | number | Yes | — | Note length in beats |
 | `velocity` | integer | No | `100` | MIDI velocity (1–127) |
 | `mute` | boolean | No | `false` | Whether the note is muted |
 
-### Note names
+#### Note names
 
-Pitches can be written as a note letter, optional accidental, and octave number:
+Pitches follow the convention where middle C is `C4` (MIDI pitch 60).
 
-| Format | Example | Description |
+| Format | Example | MIDI |
 |---|---|---|
-| Natural | `"F3"` | F in octave 3 |
-| Flat | `"Ab4"` | A-flat in octave 4 |
-| Sharp | `"C#5"` | C-sharp in octave 5 |
-| MIDI number | `53` | Raw MIDI pitch (middle C = 60) |
+| Natural | `"F3"` | 53 |
+| Flat | `"Ab4"` | 68 |
+| Sharp | `"C#5"` | 73 |
+| MIDI number | `60` | 60 (= C4) |
 
-Octave numbers follow the convention where middle C is `C4` (MIDI 60).
-
-### Beat values (common durations)
+#### Common beat durations
 
 | Value | Note |
 |---|---|
@@ -209,14 +178,47 @@ Octave numbers follow the convention where middle C is `C4` (MIDI 60).
 | `0.25` | Sixteenth note |
 | `0.125` | Thirty-second note |
 
-### Finding instrument URIs
+---
 
-The easiest way to find a URI for any instrument or preset is to browse via the MCP tools (e.g. using Claude with the AbletonMCP server) and copy the `uri` field from the result. URIs look like:
+## Finding instrument URIs
+
+The easiest method is to browse Ableton's instrument library via the MCP server (e.g. using Claude with the AbletonMCP MCP tool) and copy the `uri` field from the result. URIs look like:
 
 ```
 query:Synths#Drift:Synth%20Keys:FileId_3806
 ```
 
+When `pull_song.py` pulls a session, it generates best-guess `instrument_uri` values from the device class name and preset name. These are approximate and may need manual correction before a clean round-trip push.
+
+---
+
 ## Example
 
-`fminor_arp.track.json` included in this repo creates a MIDI track with the **Night Crystal** Drift preset playing a two-bar ascending/descending F minor arpeggio in 16th notes.
+`fminor_groove.song.json` is a complete working example: a 5-section F minor groove at 128 BPM across three tracks (arpeggio, pad, bass). It demonstrates:
+
+- A **clip library** with 6 named clips (arp full, arp sparse, pad full, pad soft, bass main, bass root)
+- **Section-level track silencing** — the intro has only the pad; the breakdown drops the bass
+- **Clip reuse** — `arp_main` and `pad_full` are shared between `verse_A` and `drop` without duplication
+
+```
+intro       8 bars   pad_soft
+verse_A    16 bars   arp_main + pad_full + bass_main
+breakdown   8 bars   arp_sparse + pad_soft
+drop       16 bars   arp_main + pad_full + bass_main
+outro       8 bars   arp_sparse + pad_soft + bass_root
+```
+
+---
+
+## Limitations
+
+- **Section names are not preserved on pull.** Arrangement clips don't store section names. Pulled JSON always labels sections A, B, C, … Manually rename them after pulling if you want meaningful names.
+- **Instrument URIs are approximate on pull.** The Live API exposes device class names but not browser URIs. Pulled `instrument_uri` values are best-guess queries.
+- **Audio tracks are skipped.** Only MIDI tracks are included in pull and push.
+- **`clip.delete()` on arrangement clips** — used by the clear pass in `setup_song.py`. Verify it works in your Live version if you see "Warning: could not delete clip" in Ableton's log.
+
+---
+
+## See also
+
+- `PLAN.md` — architecture decisions, the full list of remote script extensions, and development history including the decision to pull from the arrangement view rather than the session view.
